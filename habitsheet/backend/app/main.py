@@ -55,17 +55,28 @@ app.include_router(analytics.router, prefix=settings.API_V1_STR)
 async def health_check():
     """Service health and database ping check."""
     from app.core.database import db_manager
+    import re
     mongo_ok = False
+    error_msg = None
     if db_manager.client:
         try:
             await db_manager.client.admin.command("ping")
             mongo_ok = True
-        except Exception:
+        except Exception as e:
             mongo_ok = False
+            error_msg = str(e)
+    else:
+        error_msg = "Database client is None"
+
+    # Mask credentials in URI for safe display
+    safe_uri = re.sub(r":([^@]+)@", ":****@", settings.MONGODB_URI)
 
     return {
         "status": "healthy" if mongo_ok else "degraded",
         "database": "connected" if mongo_ok else "unreachable",
+        "error": error_msg,
+        "configured_uri": safe_uri,
+        "database_name": settings.DATABASE_NAME,
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
     }
